@@ -1,0 +1,23 @@
+default:
+  tags:
+    - PROJECT-int
+
+stages:
+  - clean
+  - deploy
+
+clean-docker-stack:
+  stage: clean
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    # stop the other docker stack (both cannot run in the same time)
+    - (cd ~/docker && docker-compose stop)
+    - scripts/ci-intdev-clean.sh
+
+install-docker-stack:
+  stage: deploy
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - scripts/ci-intdev-install.sh

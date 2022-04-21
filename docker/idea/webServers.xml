@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="32460204-fdb4-4bdb-a779-e97f18374792" name="localhost" url="https://magento2.localhost">
+        <fileTransfer rootFolder="/magento_code" accessType="SFTP" host="localhost" port="22122" sshConfigId="a2aecf96-5206-4b1c-9209-85035a7f5f7f" sshConfig="www@localhost:22122 agent" authAgent="true">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>

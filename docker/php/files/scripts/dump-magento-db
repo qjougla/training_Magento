@@ -1,0 +1,30 @@
+#!/bin/sh -e
+
+[ -f magento.sql.gz ] && echo "Error file magento.sql.gz exists. remove it." && exit 2
+
+echo "Dumping struct and data (output dir $(pwd))..."
+
+# see also https://git.x2i.biz/x2i/scripts/raw/master/mysqldump.sh
+DB=magento
+# schema
+mysqldump -uroot -proot -hdb --single-transaction --skip-triggers --no-data "$DB" | gzip > "$DB.sql.gz"
+# data
+mysqldump -uroot -proot -hdb --single-transaction --skip-triggers --no-create-info \
+        --ignore-table=$DB.log_customer \
+        --ignore-table=$DB.log_quote \
+        --ignore-table=$DB.log_summary \
+        --ignore-table=$DB.log_summary_type \
+        --ignore-table=$DB.log_url \
+        --ignore-table=$DB.log_url_info \
+        --ignore-table=$DB.log_visitor \
+        --ignore-table=$DB.log_visitor_info \
+        --ignore-table=$DB.log_visitor_online \
+        --ignore-table=$DB.fianet_log \
+        --ignore-table=$DB.sendfriend_log \
+        --ignore-table=$DB.report_compared_product_index \
+        --ignore-table=$DB.report_event \
+        --ignore-table=$DB.report_viewed_product_aggregated_daily \
+        --ignore-table=$DB.report_viewed_product_aggregated_monthly \
+        --ignore-table=$DB.report_viewed_product_aggregated_yearly \
+        --ignore-table=$DB.report_viewed_product_index \
+        "$DB" | gzip >> "$DB.sql.gz"

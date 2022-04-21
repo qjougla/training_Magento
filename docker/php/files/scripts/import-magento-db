@@ -1,0 +1,37 @@
+#!/bin/sh -e
+
+# this script should be run from magento root
+
+[ ! -f app/etc/env.php ] && echo "Error this script should be run from magento root" && exit 1
+
+if [ -f "/project/sync-env/sync-db" ]; then
+  /project/sync-env/sync-db
+else
+  echo "WARNING: /project/sync-env/sync-db not found. I will only update magento urls."
+
+  [ ! -f magento.sql.gz ] && echo "ERROR: please put a magento.sql.gz in your magento directory."
+
+  echo "Recreating DB..."
+  mysql -hdb -umagento -pmagento -e "DROP DATABASE magento; CREATE DATABASE magento;"
+
+  echo "Importing DB..."
+  pv magento.sql.gz | zcat | grep -v -e '^SET @@' -e '^/*!50013 DEFINER=' | mysql -hdb -umagento -pmagento magento
+
+  echo "Updating basic urls in core_config_data..."
+  [ "$(echo "$APP_URL" | grep '/$')" = "" ] && echo "Error APP_URL in .env MUST be defined and have a slash at the end."
+  echo "
+  UPDATE core_config_data SET value='$APP_URL' WHERE scope='default' AND scope_id='0' AND path like '%secure/base_url' OR path like '%secure/base_link_url';
+  " | mysql -hdb -umagento -pmagento magento
+fi
+
+if [ ! -f app/etc/config.php ]; then
+  echo "Generating config.php with module:enable --all (first install?)..."
+  bin/magento module:enable --all
+fi
+
+echo "Running setup:upgrade"
+bin/magento setup:upgrade
+
+# otherwise we get an error on home page without this
+echo "Running indexer:reindex"
+bin/magento indexer:reindex

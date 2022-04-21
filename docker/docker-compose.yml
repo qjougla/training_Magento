@@ -1,0 +1,165 @@
+version: "3.8"
+
+services:
+  reverse-proxy:
+    image: nginx:1.20@sha256:8800a24f9f767f6938c49a9d7d102f54c960e9cfbc1e20fd3ae6d9ddfb81e91e
+    environment:
+      NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".tmpl"
+      # PROXY_PASS_HOST to 'varnish' or 'web' container
+      PROXY_PASS_HOST: varnish
+      TIMEOUT: ${REVERSEPROXY_TIMEOUT:-"1800s"}
+      APP_HOSTS: ${APP_HOSTS}
+      APP_HOST_MAIN: ${APP_HOST_MAIN}
+    expose:
+      - "443"
+    ports:
+      - "443:443"
+    volumes:
+      - "./reverse-proxy/nginx.conf:/etc/nginx/nginx.conf:ro,cached"
+      - "./reverse-proxy/templates:/etc/nginx/templates:ro,cached"
+      - "./reverse-proxy/docker-entrypoint.d/40-ssl-certificate-generator.sh:/docker-entrypoint.d/40-ssl-certificate-generator.sh:ro,cached"
+    depends_on:
+      - varnish
+      - web
+
+  varnish:
+    image: magento/magento-cloud-docker-varnish:${VARNISH_VERSION}
+    expose:
+      - "80"
+    ports:
+      - "80:80"
+    environment:
+      - VIRTUAL_HOST=${APP_HOST_MAIN}
+      - VIRTUAL_PORT=80
+      - HTTPS_METHOD=noredirect
+    depends_on:
+      - web
+    volumes:
+    # note: magento-cloud-docker varnish config is bad.
+    # so the magento image is useless until they fix it. we may chose to use the official varnish image
+    # https://github.com/magento/magento-cloud-docker/tree/develop/images/varnish/6.6
+      - "./varnish/default.vcl:/etc/varnish/default.vcl:ro"
+
+  web:
+    image: magento/magento-cloud-docker-nginx:1.19-1.2.4@sha256:7c37b1799632dbaf5068df3cc42c961522190a0f1fa56efd7215f2f27719a97d
+    environment:
+      FPM_HOST: php
+      FPM_PORT: 9000
+      MAGENTO_ROOT: ${APP_ROOT}
+      MAGENTO_RUN_MODE: ${MAGENTO_RUN_MODE}
+      NGINX_ENVSUBST_TEMPLATE_SUFFIX: ".tmpl"
+      TIMEOUT: ${WEB_TIMEOUT:-"1800s"}
+      WITH_XDEBUG: 1
+      XDEBUG_HOST: ${XDEBUG_HOST:-php}
+    # Entrypoint override to force executing standard 20-envsubst-on-templates.sh from nginx image
+    entrypoint: [ "/bin/sh", "-c" ,"exec 3>&1 && /docker-entrypoint.d/20-envsubst-on-templates.sh && /docker-entrypoint.sh && nginx -g 'daemon off;'" ]
+    volumes:
+      - "${APP_LOCAL_ROOT}:${APP_ROOT}:ro,cached"
+      - "./web/templates:/etc/nginx/templates:ro,cached"
+    working_dir: ${APP_ROOT}
+    depends_on:
+      - php
+    networks:
+      default:
+        aliases:
+          - web.local
+
+  php:
+    build:
+      context: ./php
+      args:
+        APP_ROOT: ${APP_ROOT}
+        COMPOSER_VERSION: ${COMPOSER_VERSION}
+        PHP_MEMORY_LIMIT: ${PHP_MEMORY_LIMIT}
+        PHP_VERSION: ${PHP_VERSION}
+    env_file:
+      - .env
+    environment:
+      COMPOSER_HOME: /var/www/.composer
+      MAGENTO_COMPOSER_PACKAGE: ${MAGENTO_COMPOSER_PACKAGE}
+      MAGENTO_ROOT: ${APP_ROOT}
+      PHP_IDE_CONFIG: "serverName=${XDEBUG_SERVER_NAME}"
+      SSH_AUTH_SOCK: /ssh-agent
+    depends_on:
+      - db
+    volumes:
+      - "${APP_LOCAL_ROOT}:${APP_ROOT}:rw,delegated"
+      - "..:/project:ro"
+      - "./php/files/scripts/:/scripts/:ro,cached"
+      - "~/.composer:/var/www/.composer:rw,cached"
+      - "${SSH_PRIVATE_KEY:-~/.ssh/id_rsa}:/var/www/.ssh/id_rsa:ro"
+    working_dir: ${APP_ROOT}
+
+  db:
+    image: ${MYSQL_VERSION}
+    command: --wait-timeout=3600 --auto-increment-increment=3
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
+    volumes:
+      - "db_data:/var/lib/mysql"
+    networks:
+      default:
+        aliases:
+          - db.local
+
+  mail:
+    image: mailhog/mailhog:v1.0.1@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea
+    ports:
+      - "127.0.0.1:8025:8025"
+
+  redis:
+    image: redis:${REDIS_VERSION}
+    networks:
+      default:
+        aliases:
+          - redis.local
+
+  elasticsearch:
+    image: magento/magento-cloud-docker-elasticsearch:${ES_VERSION}
+    ports:
+      - "127.0.0.1:${ES_HOST_PORT:-9201}:9200"
+    environment:
+      - cluster.routing.allocation.disk.threshold_enabled=false
+      - "ES_JAVA_OPTS=-Xmx1g"
+    volumes:
+      - "es_data:/usr/share/elasticsearch/data"
+    networks:
+      default:
+        aliases:
+          - es.local
+
+  adminer:
+    image: adminer:latest@sha256:1eb1c21cc34caf3ae68df7a24c78769c6f93b3f3253f7717578b00086e1fc647
+    environment:
+      - ADMINER_DEFAULT_DB_DRIVER=mysql
+      - ADMINER_DEFAULT_DB_HOST=mariadb
+      - ADMINER_DEFAULT_DB_NAME=MABDD
+      - ADMINER_DESIGN=dracula
+    ports:
+      - 127.0.0.1:8080:8080
+    depends_on:
+      - db
+
+  cerebro:
+    image: lmenezes/cerebro:latest@sha256:95b02e46ec91c00ab33ce21f4d23bf6083d3c900257b9371a56ea218737462e5
+    command: "-J-Xmx256m"
+    ports:
+      - "127.0.0.1:9080:9000"
+    networks:
+      default:
+        aliases:
+          - cerebro.local
+
+  grunt:
+    build:
+      context: ./grunt
+    stdin_open: true
+    working_dir: ${APP_ROOT}
+    volumes:
+      - "${APP_LOCAL_ROOT}:${APP_ROOT}"
+
+volumes:
+  db_data:
+  es_data:

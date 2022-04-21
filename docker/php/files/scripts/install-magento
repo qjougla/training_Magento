@@ -1,0 +1,100 @@
+#!/usr/bin/env bash
+
+set -e #exit on errors
+
+cd "${APP_ROOT}"
+
+[ ! -f ./app/etc/env.php ] || { echo >&2 "ERROR Cannot install Magento: app/etc/env.php already exists!"; exit 1; }
+[ ! -z "$MAGENTO_URL" ] || { echo >&2 "ERROR Cannot install Magento: MAGENTO_URL is empty."; exit 1; }
+
+# Composer install
+composer install
+
+# remove cron
+#bin/magento cron:remove 2>/dev/null || true
+
+# uninstall in case of reinstall
+#bin/magento setup:uninstall -n
+
+# delete all the indices on elasticsearch
+#curl -X DELETE "elasticsearch:9200/_all"
+
+# play install
+
+MAGENTO_BO_NAME=${MAGENTO_BO_NAME:-admin}
+MAGENTO_USE_SECURE=${MAGENTO_USE_SECURE:-1}
+MAGENTO_USE_SECURE_ADMIN=${MAGENTO_USE_SECURE_ADMIN:-1}
+MYSQL_HOST=${MYSQL_HOST:-"db"}
+MYSQL_DATABASE=${MYSQL_DATABASE:-"magento"}
+MYSQL_USER=${MYSQL_USER:-"magento"}
+MYSQL_PASSWORD=${MYSQL_PASSWORD:-"magento"}
+MAGENTO_ADMIN_FIRSTNAME=${MAGENTO_ADMIN_FIRSTNAME:-"Clever"}
+MAGENTO_ADMIN_LASTNAME=${MAGENTO_ADMIN_LASTNAME:-"Admin"}
+MAGENTO_ADMIN_EMAIL=${MAGENTO_ADMIN_EMAIL:-"project@example.com"}
+MAGENTO_ADMIN_USERNAME=${MAGENTO_ADMIN_USERNAME:-"admin"}
+MAGENTO_ADMIN_PASSWORD=${MAGENTO_ADMIN_PASSWORD:-"admin123"}
+MAGENTO_LANGUAGE=${MAGENTO_LANGUAGE:-"fr_FR"}
+MAGENTO_TIMEZONE=${MAGENTO_TIMEZONE:-"Europe/Paris"}
+MAGENTO_DEFAULT_CURRENCY=${MAGENTO_DEFAULT_CURRENCY:-"EUR"}
+
+bin/magento setup:install \
+   --base-url=$MAGENTO_URL \
+   --base-url-secure=$MAGENTO_URL \
+   --backend-frontname=$MAGENTO_BO_NAME \
+   --use-secure=$MAGENTO_USE_SECURE \
+   --use-secure-admin=$MAGENTO_USE_SECURE_ADMIN \
+   --use-rewrites=1 \
+   --db-host=$MYSQL_HOST \
+   --db-name=$MYSQL_DATABASE \
+   --db-user=$MYSQL_USER \
+   --db-password=$MYSQL_PASSWORD \
+   --admin-firstname=$MAGENTO_ADMIN_FIRSTNAME \
+   --admin-lastname=$MAGENTO_ADMIN_LASTNAME \
+   --admin-email=$MAGENTO_ADMIN_EMAIL \
+   --admin-user=$MAGENTO_ADMIN_USERNAME \
+   --admin-password=$MAGENTO_ADMIN_PASSWORD \
+   --language=$MAGENTO_LANGUAGE \
+   --timezone=$MAGENTO_TIMEZONE \
+   --currency=$MAGENTO_DEFAULT_CURRENCY \
+   --elasticsearch-host='elasticsearch' \
+   --elasticsearch-port='9200' \
+   --cleanup-database \
+   --session-save=redis \
+   --session-save-redis-host=$REDIS_SESSION_HOST \
+   --session-save-redis-port=$REDIS_SESSION_PORT \
+   --session-save-redis-timeout='2.5' \
+   --session-save-redis-db=$REDIS_SESSION_DB  \
+   --session-save-redis-compression-threshold='2048' \
+   --session-save-redis-compression-lib='gzip' \
+   --session-save-redis-log-level='1' \
+   --session-save-redis-max-concurrency='6' \
+   --session-save-redis-break-after-frontend='5' \
+   --session-save-redis-break-after-adminhtml='30' \
+   --session-save-redis-first-lifetime='600' \
+   --session-save-redis-bot-first-lifetime='60' \
+   --session-save-redis-bot-lifetime='7200' \
+   --session-save-redis-disable-locking='0' \
+   --session-save-redis-min-lifetime='60' \
+   --session-save-redis-max-lifetime='2592000' \
+   --cache-backend='redis' \
+   --cache-backend-redis-server=$REDIS_CACHE_HOST \
+   --cache-backend-redis-db=$REDIS_CACHE_DB \
+   --cache-backend-redis-port=$REDIS_CACHE_PORT \
+   --page-cache='redis' \
+   --page-cache-redis-server=$REDIS_CACHE_HOST \
+   --page-cache-redis-db=$REDIS_PAGE_DB \
+   --page-cache-redis-port=$REDIS_CACHE_PORT \
+   --page-cache-redis-compress-data='0' \
+#   --amqp-host='rabbitmq.local' \
+#   --amqp-port='5672' \
+#   --amqp-user='rabbitmq' \
+#   --amqp-password='rabbitmq' \
+#   --amqp-virtualhost='/' \
+
+
+# Varnish
+php -d memory_limit=4G bin/magento config:set --scope=default --scope-code=0 system/full_page_cache/caching_application 2
+bin/magento setup:config:set --http-cache-hosts="varnish" -n
+
+# Insert crontab
+#bin/magento cron:install

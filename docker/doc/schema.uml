@@ -1,0 +1,87 @@
+@startuml
+' skinparam linetype ortho
+
+cloud Internet as internet
+
+node ssl #gold [
+ <b>SSL Offloader
+ "reverse-proxy"
+]
+note right of ssl
+  Remove the SSL encryption
+  HTTPS -> HTTP
+end note
+
+internet <-down-> ssl: ":443"
+
+node Varnish #application [
+ <b>Varnish
+ "varnish"
+]
+
+note left of Varnish
+   HTTP accelerator or caching HTTP
+   It stores (or caches) files or fragments of files in memory. 
+   this enables Varnish to reduce the response time and network 
+   bandwidth consumption on future, equivalent requests.
+end note
+
+ssl <-down-> Varnish: ":80"
+
+node Nginx #lime[
+ <b>Nginx
+ "web"
+]
+
+note right of Nginx
+   Web server
+end note
+
+Varnish <-down-> Nginx: ":80"
+
+node Php #cornflowerblue [
+ <b>PHP
+ "php"
+]
+
+note left of Php
+   Php interpretor
+end note
+
+Nginx <-down-> Php: ":9000"
+
+database MariaDB #orange[
+ <b>MariaDB
+ "db"
+]
+
+note bottom of MariaDB
+   Relational database used to store Magento data 
+  (Products, customers, orders ...)
+end note
+
+Php <-down-> MariaDB: ":3306"
+
+database Redis #red;text:white [
+ <b>Redis
+ "redis"
+]
+
+note bottom of Redis
+   NoSQL database with high performances 
+   used to store Magento data that needs fast access 
+end note
+
+Php <-down-> Redis: ":6379"
+
+database Elasticsearch #green;text:white [
+ <b>Elasticsearch
+ "elasticsearch"
+]
+
+note bottom of Elasticsearch
+    Magento catalog search engine 
+end note
+
+Php <-down-> Elasticsearch: ":9200"
+@enduml

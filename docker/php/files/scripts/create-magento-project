@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -e #exit on errors
+
+cd "${APP_ROOT}"
+[ ! -z "$(ls -A)" ] && echo "ERROR directory $APP_ROOT is not empty. Please empty it before composer create-project." && exit 1
+
+[ ! -z "$MAGENTO_COMPOSER_PACKAGE" ] || { echo >&2 "ERROR Cannot install Magento: MAGENTO_COMPOSER_PACKAGE is empty."; exit 1; }
+
+composer create-project --repository-url=https://repo.magento.com/ --no-install ${MAGENTO_COMPOSER_PACKAGE} .

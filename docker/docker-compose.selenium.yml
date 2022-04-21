@@ -1,0 +1,24 @@
+version: "3"
+
+services:
+  selenium:
+    build:
+      context: ./selenium
+      args:
+        dev_uid: ${USER_ID}
+        dev_gid: ${USER_GID}
+    depends_on:
+      - web
+      - selenium-standalone
+    volumes:
+      - ${SELENIUM_LOCAL_PATH}:/selenium
+    environment:
+      ENV: dev
+
+  selenium-standalone:
+    image: selenium/standalone-chrome-debug:3.141.59
+    expose:
+      - "4444"
+      - "5900"
+    ports:
+      - "4199:5900"

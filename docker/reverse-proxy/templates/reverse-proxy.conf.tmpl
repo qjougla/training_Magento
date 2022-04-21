@@ -1,0 +1,45 @@
+# Template for reverse-proxy.conf
+# Allows the use of ${PROXY_PASS_HOST} and any other needed environment variable.
+# See https://hub.docker.com/_/nginx?tab=description&name=1.19
+
+server {
+    listen       443 ssl;
+    listen       [::]:443 ssl;
+    server_name  _;
+
+    ssl_certificate "/etc/certs/server.crt";
+    ssl_certificate_key "/etc/certs/server.key";
+    ssl_session_cache shared:SSL:1m;
+    ssl_session_timeout  10m;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
+
+    # Adjust timeouts
+    proxy_connect_timeout ${TIMEOUT};
+    proxy_send_timeout    ${TIMEOUT};
+    proxy_read_timeout    ${TIMEOUT};
+    fastcgi_send_timeout  ${TIMEOUT};
+    fastcgi_read_timeout  ${TIMEOUT};
+
+    # Increase buffers
+    proxy_buffer_size          128k;
+    proxy_buffers              4    256k;
+    proxy_busy_buffers_size    256k;
+
+    location / {
+        proxy_pass "http://${PROXY_PASS_HOST}/";
+        proxy_set_header Host                   $host;
+        proxy_set_header X-Forwarded-For        $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto      $scheme;
+        add_header X-SSL                        $hostname;
+        add_header SSL-OFFLOADED                https;
+    }
+
+    error_page 404 /404.html;
+        location = /40x.html {
+    }
+
+    error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+    }
+}

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e #exit on errors
+
+# sample data
+cd $APP_ROOT
+[ -f var/composer_home/auth.json ] || cp -a /var/www/.composer/auth.json var/composer_home/auth.json
+
+# get sample data cache from local
+#rsync -av --progress mage2-demo-ce::x2i/project-enterprise-edition-and-modules/var/composer_home/ var/composer_home/
+
+php -d memory_limit=4G bin/magento sampledata:deploy
+php  bin/magento setup:upgrade
+chmod g+r var/composer_home/auth.json

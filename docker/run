@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+
+# Uncomment to enable debug trace
+#set -x
+
+ARGS=${*}
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ $1 == "exec" ] && [ $2 == "php" ]; then
+    ARGS=$(echo $ARGS |sed "s/exec php/exec -u www-data php/g")
+fi
+
+[ ! -f "${DIR}/docker-compose.override.yml" ] || dockerComposeArgs="-f ${DIR}/docker-compose.override.yml"
+
+if [ "$(uname)" == "Darwin" ]; then
+    if [ ! -f "${DIR}/compose-${USER}.yml" ]; then
+        cat >"${DIR}/compose-${USER}.yml" <<EOT
+
+version: '3.8'
+
+services:
+  web:
+    volumes:
+        - app_data:\${APP_ROOT}:ro
+
+  php:
+    user: root
+    command: >
+        /bin/sh -c "export XDEBUG_CONFIG=\"remote_host=docker.for.mac.localhost\" && php-fpm"
+    volumes:
+        - app_data:\${APP_ROOT}
+        - "./php/files/scripts/:/scripts/:ro,cached"
+        - "~/.composer:/home/app/.composer:rw,cached"
+        - "${SSH_PRIVATE_KEY:-~/.ssh/id_rsa}:/home/app/.ssh/id_rsa:ro"
+
+  sftp:
+    image: atmoz/sftp
+    environment:
+        TZ: "Europe/Paris"
+    volumes:
+      - ./.ssh_host/ssh_host_ed25519_key:/etc/ssh/ssh_host_ed25519_key
+      - ./.ssh_host/ssh_host_rsa_key:/etc/ssh/ssh_host_rsa_key
+      - app_data:/home/www/magento_code
+      - ~/.ssh/id_rsa.pub:/home/www/.ssh/keys/id_rsa.pub:ro
+    ports:
+      - "22122:22"
+    command: www::33
+
+  grunt:
+    volumes:
+      - app_data:\${APP_ROOT}
+
+volumes:
+  app_data:
+
+EOT
+
+        docker-compose -f "${DIR}/docker-compose.yml" \
+            $dockerComposeArgs \
+            -f "${DIR}/compose-${USER}.yml" \
+            run sftp chown -R 33:33 /home/www/magento_code
+    fi
+
+    docker-compose -f "${DIR}/docker-compose.yml" -f "${DIR}/compose-${USER}.yml" ${ARGS}
+
+elif [ "$(uname)" == "Linux" ]; then
+    if [ ! -f "${DIR}/compose-${USER}.yml" ]; then
+        cat >"${DIR}/compose-${USER}.yml" <<EOT
+
+version: '3.8'
+
+services:
+  php:
+    user: root
+    command: >
+      /bin/sh -c "groupmod -o -g $(id -g) www-data &&
+                  usermod -o -u ${UID} -g $(id -g) -d \${APP_ROOT} www-data &&
+                  export XDEBUG_CONFIG=\"remote_host=\$\$(/sbin/ip route|awk '/default/ { print \$\$3 }')\" &&
+                  php-fpm"
+    volumes:
+      - /run/user/$(id -u)/keyring/ssh:/ssh-agent
+    extra_hosts:
+      - "host.docker.internal:172.17.0.1"
+
+EOT
+    fi
+
+    docker-compose -f "${DIR}/docker-compose.yml" \
+            $dockerComposeArgs \
+            -f "${DIR}/compose-${USER}.yml" \
+            ${ARGS}
+fi
