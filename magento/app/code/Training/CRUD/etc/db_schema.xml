@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<schema xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:framework:Setup/Declaration/Schema/etc/schema.xsd">
+    <table name="training_crud_accessory" resource="default" engine="innodb" comment="site's review">
+        <column xsi:type="int" name="accessory_id" unsigned="true" nullable="false" identity="true"
+                comment="id's accessory"/>
+        <constraint xsi:type="primary" referenceId="PRIMARY">
+            <column name="accessory_id"/>
+        </constraint>
+        <column xsi:type="varchar" name="name" length="255" nullable="false"
+                comment="accessory's name"/>
+        <column xsi:type="text" name="description" nullable="false"
+                comment="accessory's description"/>
+        <column xsi:type="timestamp" name="created_at" on_update="false" nullable="false" default="CURRENT_TIMESTAMP"
+                comment="created date"/>
+        <column xsi:type="int" name="product_id" unsigned="true" nullable="false"
+                comment="Product id"/>
+        <constraint xsi:type="foreign" referenceId="PRODUCT_ID" table="training_crud_accessory" column="product_id"
+                    referenceTable="catalog_product_entity" referenceColumn="entity_id"/>
+    </table>
+</schema>
