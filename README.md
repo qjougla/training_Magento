@@ -12,5 +12,8 @@ result : `Perfect: all requirements are satisfied. You can continue the install 
 `make magento-install` <= to install Magento (it's take's a long time)<br>
 the important message is `[SUCCESS]: Magento installation complete`<br>
 Disanle Magento_TwoFactorAuth module `./run exec php bin/magento module:disable Magento_TwoFactorAuth`<br>
-sample data `make magento-install-sampledata
-`
+sample data : 
+- `make magento-install-sampledata`
+- `make bash`
+- `php bin/magento sampledata:deploy`
+- `php bin/magento setup:upgrade`
